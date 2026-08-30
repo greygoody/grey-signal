@@ -21,12 +21,15 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --component rustfmt,clippy
           rustup default stable
-      - name: Emit bootstrap lockfile evidence
-        run: |
-          cargo generate-lockfile
-          printf 'GREY_SIGNAL_LOCKFILE_B64='
-          base64 -w0 Cargo.lock
-          printf '\n'
+      - name: Generate bootstrap lockfile
+        run: cargo generate-lockfile
+      - name: Upload bootstrap lockfile
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cargo-lock-bootstrap
+          path: Cargo.lock
+          if-no-files-found: error
+          retention-days: 1
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
