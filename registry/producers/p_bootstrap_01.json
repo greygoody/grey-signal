@@ -1,0 +1,12 @@
+{
+  "issuer": "p_bootstrap_01",
+  "keys": {
+    "k1": "0Xqm5pnptdJKcvfbINn98F5P-4xNlN1sg1PFznWx1NE"
+  },
+  "grants": [
+    {
+      "kind": "probe.requested.v1",
+      "targets": ["t_bootstrap_01"]
+    }
+  ]
+}
