@@ -77,7 +77,8 @@ pub fn sign_envelope(
         return Err(ProducerError::SignatureAlreadyPresent);
     }
 
-    let bytes = canonical::unsigned_bytes(&envelope).map_err(|_| ProducerError::Canonicalization)?;
+    let bytes =
+        canonical::unsigned_bytes(&envelope).map_err(|_| ProducerError::Canonicalization)?;
     envelope.signature = URL_SAFE_NO_PAD.encode(signing_key.sign(&bytes).to_bytes());
     Ok(envelope)
 }
