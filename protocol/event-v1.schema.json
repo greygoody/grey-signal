@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/greygoody/grey-signal/protocol/event-v1.schema.json",
+  "title": "Grey Signal event envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec", "id", "issuer", "key_id", "kind", "target", "issued_at",
+    "expires_at", "correlation_id", "causation_id", "payload", "signature"
+  ],
+  "properties": {
+    "spec": { "const": "grey-signal/event/v1" },
+    "id": { "$ref": "#/$defs/id" },
+    "issuer": { "$ref": "#/$defs/id" },
+    "key_id": { "$ref": "#/$defs/id" },
+    "kind": { "enum": ["probe.requested.v1", "probe.completed.v1"] },
+    "target": { "$ref": "#/$defs/id" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "correlation_id": { "$ref": "#/$defs/id" },
+    "causation_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+    "payload": { "type": "object" },
+    "signature": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    }
+  }
+}

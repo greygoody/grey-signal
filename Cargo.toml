@@ -1,0 +1,20 @@
+[package]
+name = "grey-signal"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Authenticated public-safe event admission for Grey Signal"
+
+[dependencies]
+base64 = "0.22"
+clap = { version = "4.5", features = ["derive"] }
+ed25519-dalek = "2"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+
+[dev-dependencies]
+tempfile = "3"
