@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "probe.completed.v1 payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "nonce_digest", "consumer_version", "observed_at"],
+  "properties": {
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 96, "pattern": "^[A-Za-z0-9_.:-]+$" },
+    "nonce_digest": { "type": "string", "pattern": "^sha256:[0-9a-fA-F]{64}$" },
+    "consumer_version": { "type": "string", "minLength": 1, "maxLength": 96 },
+    "observed_at": { "type": "string", "format": "date-time" }
+  }
+}

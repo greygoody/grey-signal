@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "probe.requested.v1 payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nonce"],
+  "properties": {
+    "nonce": { "type": "string", "minLength": 1, "maxLength": 256 }
+  }
+}
