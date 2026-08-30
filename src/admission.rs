@@ -236,9 +236,12 @@ fn validate_payload(envelope: &Envelope, now: OffsetDateTime) -> Result<(), Admi
                     "nonce_digest must be sha256:<64 lowercase hex characters>".to_owned(),
                 ));
             }
-            if !payload.nonce_digest[7..].bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            if !payload.nonce_digest[7..]
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+            {
                 return Err(AdmissionError::InvalidPayload(
-                    "nonce_digest must be hexadecimal".to_owned(),
+                    "nonce_digest must be lowercase hexadecimal".to_owned(),
                 ));
             }
             if payload.consumer_version.is_empty() || payload.consumer_version.len() > 96 {

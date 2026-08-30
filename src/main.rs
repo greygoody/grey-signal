@@ -55,13 +55,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             admitted_at,
             output,
         } => {
-            let encoded = env::var(&input_env)
-                .map_err(|_| format!("required environment variable {input_env} is not set"))?;
-            let raw = URL_SAFE_NO_PAD
-                .decode(encoded.as_bytes())
-                .map_err(|_| "input is not unpadded base64url")?;
-            let admitted_at = OffsetDateTime::parse(&admitted_at, &Rfc3339)
-                .map_err(|_| "--admitted-at must be RFC3339")?;
+            let encoded = env::var(&input_env)?;
+            let raw = URL_SAFE_NO_PAD.decode(encoded.as_bytes())?;
+            let admitted_at = OffsetDateTime::parse(&admitted_at, &Rfc3339)?;
             let record = admit(
                 &raw,
                 &registry_dir,
