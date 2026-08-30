@@ -1,0 +1,9 @@
+schema = "grey-garbage-observation/v0"
+target = "greygoody/grey-signal:branch/bootstrap/authenticated-roundtrip-v0"
+reason = "merged bootstrap branch appears superseded by protected main"
+condition = "corresponding merged work remains authoritative and no active work reuses the branch"
+
+[observer]
+kind = "chatgpt"
+attempt = "grey-signal#1/producer-bootstrap-r0"
+source = "greygoody/grey-signal#1"
