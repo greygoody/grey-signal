@@ -186,10 +186,10 @@ fn validate_envelope(envelope: &Envelope, now: OffsetDateTime) -> Result<(), Adm
             return Err(AdmissionError::InvalidIdentifier(field));
         }
     }
-    if let Some(causation_id) = &envelope.causation_id {
-        if !valid_identifier(causation_id) {
-            return Err(AdmissionError::InvalidIdentifier("causation_id"));
-        }
+    if let Some(causation_id) = &envelope.causation_id
+        && !valid_identifier(causation_id)
+    {
+        return Err(AdmissionError::InvalidIdentifier("causation_id"));
     }
 
     validate_payload(envelope, now)?;
