@@ -1,17 +1,17 @@
 use std::{collections::BTreeMap, fs, path::Path};
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
-use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
+use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{
     canonical,
     envelope::{
-        Envelope, ProbeCompletedPayload, ProbeRequestedPayload, EVENT_SPEC_V1, PROBE_COMPLETED_V1,
-        PROBE_REQUESTED_V1,
+        EVENT_SPEC_V1, Envelope, PROBE_COMPLETED_V1, PROBE_REQUESTED_V1, ProbeCompletedPayload,
+        ProbeRequestedPayload,
     },
 };
 
@@ -127,7 +127,11 @@ pub fn admit(
     }
 
     let authorized = registry.grants.iter().any(|grant| {
-        grant.kind == envelope.kind && grant.targets.iter().any(|target| target == &envelope.target)
+        grant.kind == envelope.kind
+            && grant
+                .targets
+                .iter()
+                .any(|target| target == &envelope.target)
     });
     if !authorized {
         return Err(AdmissionError::Unauthorized);
@@ -139,15 +143,15 @@ pub fn admit(
         .ok_or(AdmissionError::UnknownKey)?;
     let verifying_key = decode_public_key(key_encoded)?;
     let signature = decode_signature(&envelope.signature)?;
-    let signed_bytes = canonical::unsigned_bytes(&envelope)
-        .map_err(|_| AdmissionError::Canonicalization)?;
+    let signed_bytes =
+        canonical::unsigned_bytes(&envelope).map_err(|_| AdmissionError::Canonicalization)?;
 
     verifying_key
         .verify_strict(&signed_bytes, &signature)
         .map_err(|_| AdmissionError::InvalidSignature)?;
 
-    let full_event = canonical::full_event_bytes(&envelope)
-        .map_err(|_| AdmissionError::Canonicalization)?;
+    let full_event =
+        canonical::full_event_bytes(&envelope).map_err(|_| AdmissionError::Canonicalization)?;
     let event_digest = format!("sha256:{}", hex::encode(Sha256::digest(full_event)));
 
     Ok(AdmissionRecord {
@@ -215,8 +219,9 @@ fn validate_envelope(envelope: &Envelope, now: OffsetDateTime) -> Result<(), Adm
 fn validate_payload(envelope: &Envelope, now: OffsetDateTime) -> Result<(), AdmissionError> {
     match envelope.kind.as_str() {
         PROBE_REQUESTED_V1 => {
-            let payload: ProbeRequestedPayload = serde_json::from_value(envelope.payload.clone())
-                .map_err(|error| AdmissionError::InvalidPayload(error.to_string()))?;
+            let payload: ProbeRequestedPayload =
+                serde_json::from_value(envelope.payload.clone())
+                    .map_err(|error| AdmissionError::InvalidPayload(error.to_string()))?;
             if payload.nonce.is_empty() || payload.nonce.len() > 256 {
                 return Err(AdmissionError::InvalidPayload(
                     "nonce must contain 1..=256 bytes".to_owned(),
@@ -224,8 +229,9 @@ fn validate_payload(envelope: &Envelope, now: OffsetDateTime) -> Result<(), Admi
             }
         }
         PROBE_COMPLETED_V1 => {
-            let payload: ProbeCompletedPayload = serde_json::from_value(envelope.payload.clone())
-                .map_err(|error| AdmissionError::InvalidPayload(error.to_string()))?;
+            let payload: ProbeCompletedPayload =
+                serde_json::from_value(envelope.payload.clone())
+                    .map_err(|error| AdmissionError::InvalidPayload(error.to_string()))?;
             if !valid_identifier(&payload.request_id) {
                 return Err(AdmissionError::InvalidPayload(
                     "request_id is not a valid identifier".to_owned(),
@@ -264,9 +270,9 @@ fn validate_payload(envelope: &Envelope, now: OffsetDateTime) -> Result<(), Admi
 fn valid_identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_ID_LEN
-        && value.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b':')
-        })
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b':'))
 }
 
 fn parse_timestamp(value: &str, field: &'static str) -> Result<OffsetDateTime, AdmissionError> {
@@ -303,11 +309,11 @@ fn decode_signature(encoded: &str) -> Result<Signature, AdmissionError> {
 mod tests {
     use std::fs;
 
-    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use ed25519_dalek::{Signer, SigningKey};
     use serde_json::json;
     use tempfile::TempDir;
-    use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+    use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
     use super::*;
 

@@ -1,9 +1,9 @@
 use std::{env, fs, path::PathBuf, process::ExitCode};
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use clap::{Parser, Subcommand};
-use grey_signal::{admit, AdmissionMetadata};
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use grey_signal::{AdmissionMetadata, admit};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 #[derive(Debug, Parser)]
 #[command(name = "grey-signal")]
