@@ -17,22 +17,13 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - name: Install Rust stable
+      - name: Install pinned Rust toolchain
         run: |
-          rustup toolchain install stable --profile minimal --component rustfmt,clippy
-          rustup default stable
-      - name: Generate bootstrap lockfile
-        run: cargo generate-lockfile
-      - name: Upload bootstrap lockfile
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: cargo-lock-bootstrap
-          path: Cargo.lock
-          if-no-files-found: error
-          retention-days: 1
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.98.0
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
       - name: Test
-        run: cargo test --all-targets
+        run: cargo test --locked --all-targets

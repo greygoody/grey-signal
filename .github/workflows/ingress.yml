@@ -1,0 +1,217 @@
+name: signal-ingress
+
+on:
+  workflow_dispatch:
+    inputs:
+      envelope:
+        description: Base64url signed Grey Signal event envelope; input must already be public-safe
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      event_id: ${{ steps.admission.outputs.event_id }}
+      event_digest: ${{ steps.admission.outputs.event_digest }}
+      record_b64: ${{ steps.admission.outputs.record_b64 }}
+    steps:
+      - name: Require current main ingress
+        env:
+          SIGNAL_ENVELOPE_B64: ${{ inputs.envelope }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::signal ingress must be dispatched against main"
+            exit 1
+          fi
+          encoded_len=${#SIGNAL_ENVELOPE_B64}
+          if (( encoded_len == 0 || encoded_len > 12000 )); then
+            echo "::error::encoded envelope length is outside the v0 ingress bound"
+            exit 1
+          fi
+      - name: Checkout exact policy revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup default 1.98.0
+      - name: Build exact admission executable
+        run: cargo build --release --locked --bin grey-signal
+      - name: Admit signed envelope
+        id: admission
+        env:
+          SIGNAL_ENVELOPE_B64: ${{ inputs.envelope }}
+        run: |
+          requalify_main() {
+            current_main="$(git ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
+            if [[ "$current_main" != "$GITHUB_SHA" ]]; then
+              echo "::error::main moved during admission; retry against current policy"
+              exit 1
+            fi
+          }
+
+          requalify_main
+          work_dir="$RUNNER_TEMP/grey-signal-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$work_dir"
+          admitted_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          ./target/release/grey-signal admit \
+            --registry-dir registry/producers \
+            --policy-commit "$GITHUB_SHA" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --admitted-at "$admitted_at" \
+            --output "$work_dir/record.json"
+
+          requalify_main
+          event_id="$(jq -er '.event.id' "$work_dir/record.json")"
+          event_digest="$(jq -er '.event_digest' "$work_dir/record.json")"
+          record_b64="$(base64 -w0 "$work_dir/record.json")"
+
+          if [[ ! "$event_id" =~ ^[A-Za-z0-9_.:-]{1,96}$ ]]; then
+            echo "::error::admission produced an invalid event id"
+            exit 1
+          fi
+          if [[ ! "$event_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::admission produced an invalid event digest"
+            exit 1
+          fi
+
+          echo "event_id=$event_id" >> "$GITHUB_OUTPUT"
+          echo "event_digest=$event_digest" >> "$GITHUB_OUTPUT"
+          echo "record_b64=$record_b64" >> "$GITHUB_OUTPUT"
+
+  append:
+    name: append
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    concurrency:
+      group: grey-signal-ledger-v0
+      queue: max
+    env:
+      EVENT_ID: ${{ needs.verify.outputs.event_id }}
+      EVENT_DIGEST: ${{ needs.verify.outputs.event_digest }}
+      RECORD_B64: ${{ needs.verify.outputs.record_b64 }}
+    steps:
+      - name: Rehydrate admitted record
+        run: |
+          work_dir="$RUNNER_TEMP/grey-signal-ledger-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$work_dir"
+          printf '%s' "$RECORD_B64" | base64 --decode > "$work_dir/record.json"
+
+          record_id="$(jq -er '.event.id' "$work_dir/record.json")"
+          record_digest="$(jq -er '.event_digest' "$work_dir/record.json")"
+          policy_commit="$(jq -er '.admission.policy_commit' "$work_dir/record.json")"
+
+          if [[ "$record_id" != "$EVENT_ID" || "$record_digest" != "$EVENT_DIGEST" ]]; then
+            echo "::error::admission record/output identity mismatch"
+            exit 1
+          fi
+          if [[ ! "$policy_commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::admission record has an invalid policy commit"
+            exit 1
+          fi
+
+          echo "RECORD_PATH=$work_dir/record.json" >> "$GITHUB_ENV"
+          echo "POLICY_COMMIT=$policy_commit" >> "$GITHUB_ENV"
+      - name: Requalify current policy and ledger identity
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          api_headers=(
+            -H "Accept: application/vnd.github+json"
+            -H "Authorization: Bearer $GITHUB_TOKEN"
+            -H "X-GitHub-Api-Version: 2026-03-10"
+          )
+
+          main_response="$RUNNER_TEMP/main-branch.json"
+          main_status="$(curl --silent --show-error --output "$main_response" --write-out '%{http_code}' \
+            "${api_headers[@]}" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/branches/main")"
+          if [[ "$main_status" != "200" ]]; then
+            echo "::error::failed to requalify current main policy (HTTP $main_status)"
+            exit 1
+          fi
+          current_main="$(jq -er '.commit.sha' "$main_response")"
+          if [[ "$current_main" != "$POLICY_COMMIT" ]]; then
+            echo "::error::main moved after verification; retry against current policy"
+            exit 1
+          fi
+
+          existing_response="$RUNNER_TEMP/existing-ledger-record.json"
+          existing_status="$(curl --silent --show-error --output "$existing_response" --write-out '%{http_code}' \
+            "${api_headers[@]}" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/events/$EVENT_ID.json?ref=ledger")"
+
+          case "$existing_status" in
+            200)
+              encoding="$(jq -er '.encoding' "$existing_response")"
+              if [[ "$encoding" != "base64" ]]; then
+                echo "::error::existing ledger record has unsupported content encoding"
+                exit 1
+              fi
+              jq -er '.content' "$existing_response" | tr -d '\n' | base64 --decode > "$RUNNER_TEMP/existing-record.json"
+              existing_id="$(jq -er '.event.id' "$RUNNER_TEMP/existing-record.json")"
+              existing_digest="$(jq -er '.event_digest' "$RUNNER_TEMP/existing-record.json")"
+              if [[ "$existing_id" != "$EVENT_ID" ]]; then
+                echo "::error::ledger path identity does not match stored event identity"
+                exit 1
+              fi
+              if [[ "$existing_digest" == "$EVENT_DIGEST" ]]; then
+                echo "LEDGER_DISPOSITION=duplicate" >> "$GITHUB_ENV"
+              else
+                echo "::error::conflicting replay: event id already exists with a different digest"
+                exit 1
+              fi
+              ;;
+            404)
+              echo "LEDGER_DISPOSITION=append" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "::error::failed to inspect ledger identity (HTTP $existing_status)"
+              exit 1
+              ;;
+          esac
+      - name: Append immutable ledger record
+        if: env.LEDGER_DISPOSITION == 'append'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          content="$(base64 -w0 "$RECORD_PATH")"
+          request="$RUNNER_TEMP/create-ledger-record.json"
+          response="$RUNNER_TEMP/create-ledger-response.json"
+          jq -n \
+            --arg message "ledger: admit $EVENT_ID" \
+            --arg content "$content" \
+            '{message: $message, content: $content, branch: "ledger"}' > "$request"
+
+          status="$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+            -X PUT \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            --data-binary @"$request" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/events/$EVENT_ID.json")"
+
+          if [[ "$status" != "201" ]]; then
+            echo "::error::ledger append failed (HTTP $status)"
+            exit 1
+          fi
+          ledger_commit="$(jq -er '.commit.sha' "$response")"
+          echo "admitted $EVENT_ID at ledger commit $ledger_commit"
+      - name: Report idempotent replay
+        if: env.LEDGER_DISPOSITION == 'duplicate'
+        run: echo "event $EVENT_ID is already admitted with digest $EVENT_DIGEST"
