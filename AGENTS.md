@@ -28,6 +28,18 @@ This repository is a public signalling and reconciliation substrate. Preserve th
 - A new event kind requires a bounded schema, authorization rule, negative tests, and one identified consumer.
 - Schedulers, leases, projections, retries, child-work semantics, and workflow-engine behavior are introduced only when repeated operation demonstrates pressure for them.
 
+## Garbage observations
+
+The root `garbage/` directory is a cheap observation inbox governed by `greygoody/garbage-collector` and its current `grey-garbage-observation/v0` contract.
+
+- When probable cleanup is encountered incidentally and cleanup is outside the active scope, append one tiny independent TOML observation under `garbage/` using the upstream template.
+- Do not investigate merely to manufacture an observation.
+- Preserve observer provenance: `kind`, bounded attempt/context, and durable source coordinate when available.
+- Do not deduplicate observations at write time, rewrite another observation to increment a count, or infer cleanup authority from frequency.
+- An observation is not a Task, defect, cleanup authorization, or proof that the target is removable.
+- The garbage collector owns normalization, aggregation, recurrence/diversity analysis, and later cleanup recommendations. Actual cleanup still follows the target repository's authority model.
+- Because this repository is public, every garbage observation must also obey Grey Signal's public-data law. Do not leak private repository identities, customer data, secrets, or sensitive infrastructure details into `garbage/`.
+
 ## v0 scope
 
 Issue #1 owns the authenticated round-trip bootstrap.
