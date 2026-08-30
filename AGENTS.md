@@ -40,6 +40,17 @@ The root `garbage/` directory is a cheap observation inbox governed by `greygood
 - The garbage collector owns normalization, aggregation, recurrence/diversity analysis, and later cleanup recommendations. Actual cleanup still follows the target repository's authority model.
 - Because this repository is public, every garbage observation must also obey Grey Signal's public-data law. Do not leak private repository identities, customer data, secrets, or sensitive infrastructure details into `garbage/`.
 
+## Security consideration thread
+
+The root `security/` path is the durable security-thinking thread. It is evidence and design pressure, not a parallel authority plane.
+
+- Inspect `security/THREAD.md` when bounded work touches ingress, authentication, signatures, workflow permissions, public-data exposure, ledger semantics, producer/consumer credentials, or target execution boundaries.
+- When a relevant security concern is encountered, append or refine a short entry with observer/pass provenance and a disposition instead of expanding the active task into an unsolicited broad security redesign.
+- Do not duplicate repository law into the thread merely to restate it. Record uncertainty, residual risk, new evidence, or a proposed concern that may need later promotion.
+- Thread entries do not authorize implementation, block unrelated work, or establish vulnerabilities by themselves. Consequential findings move through the normal Issue/PR/review path.
+- Preserve independent observations when they carry distinct provenance; repeated evidence may justify stronger attention but does not create authority automatically.
+- The security path is public and obeys the same public-data restrictions as the rest of this repository.
+
 ## v0 scope
 
 Issue #1 owns the authenticated round-trip bootstrap.
